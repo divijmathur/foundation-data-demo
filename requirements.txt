@@ -5,3 +5,5 @@ matplotlib
 langdetect
 ftfy
 plotly
+torch
+detoxify
