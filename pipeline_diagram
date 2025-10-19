@@ -1,0 +1,23 @@
+digraph DataPipeline {
+	rankdir=LR size="8,5"
+	A [label="Raw Web Crawl
+(Petabytes)"]
+	B [label="Cleaning & Normalization
+(ftfy, regex, token filters)"]
+	C [label="Language ID & Quality Filters
+(langdetect, heuristics)"]
+	D [label="Deduplication
+(SHA-1 fingerprints)"]
+	E [label="Sampling & Balancing
+(stratified by domain/lang)"]
+	F [label="Storage & Access Layer
+(Shard → Dataset Registry)"]
+	G [label="Model Training
+(Data Loader + Tokenizer)"]
+	A -> B
+	B -> C
+	C -> D
+	D -> E
+	E -> F
+	F -> G
+}
