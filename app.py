@@ -3,11 +3,10 @@ import streamlit as st
 from datasets import load_dataset
 import pandas as pd
 import ftfy, re
-from langdetect import detect
+# from langdetect import detect  # optional, disabled for speed
 from detoxify import Detoxify
 import torch
 import plotly.express as px
-from tqdm import tqdm
 
 # ----------------------------
 # PAGE CONFIG & INTRO
@@ -17,7 +16,7 @@ st.title("🧠 Data Quality Dashboard")
 
 st.markdown("""
 Welcome to the **Data Quality Dashboard**  
-a miniature simulation of a Data pipeline used to curate model-training datasets.
+a miniature simulation of a data pipeline used to curate model-training datasets.
 
 **You can:**
 - Adjust filters for text length, language, and duplication.  
@@ -47,12 +46,19 @@ def has_factual_marker(text):
     return bool(re.search(markers, text, flags=re.I))
 
 @st.cache_data(show_spinner=False)
-def load_data():
-    dataset = load_dataset("cc_news", split="train[:1000]")
+def load_data(n_samples=300):
+    """Load and preprocess a small sample of the dataset for faster demos."""
+    dataset = load_dataset("cc_news", split=f"train[:{n_samples}]")
     df = pd.DataFrame(dataset)
     df["clean_text"] = df["text"].apply(clean_text)
     df["text_length"] = df["clean_text"].str.len()
     return df
+
+@st.cache_resource(show_spinner=False)
+def load_toxicity_model():
+    """Cache the Detoxify model to avoid reloading each run."""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    return Detoxify("original", device=device)
 
 # ----------------------------
 # UI CONTROLS
@@ -60,7 +66,6 @@ def load_data():
 st.sidebar.header("🔧 Filter Options")
 min_len = st.sidebar.slider("Min text length", 100, 2000, 200)
 max_len = st.sidebar.slider("Max text length", 1000, 10000, 5000)
-# only_en = st.sidebar.checkbox("Keep only English", True)
 dedupe = st.sidebar.checkbox("Deduplicate", True)
 compute_metrics = st.sidebar.checkbox("Compute Quality Metrics (on demand)", False)
 generate_report = st.sidebar.button("📄 Generate Data Quality Report")
@@ -69,10 +74,6 @@ generate_report = st.sidebar.button("📄 Generate Data Quality Report")
 # DATA LOADING & FILTERING
 # ----------------------------
 df = load_data()
-
-# if only_en:
-#     df["lang"] = df["clean_text"].apply(lambda t: detect(t) if len(t) > 20 else "unknown")
-#     df = df[df["lang"] == "en"]
 
 if dedupe:
     df = df.drop_duplicates(subset=["clean_text"])
@@ -92,12 +93,20 @@ avg_tox = hi_tox = factual = None
 domain_counts = {}
 
 if compute_metrics:
-    st.subheader("🧩 Computing Quality Metrics...")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = Detoxify("original", device=device)
+    st.subheader("🧩 Computing Quality Metrics... (may take 30–60s on CPU)")
+    model = load_toxicity_model()
 
-    tqdm.pandas()
-    df["toxicity_score"] = df["clean_text"].progress_apply(lambda t: model.predict(t)["toxicity"])
+    # Predict toxicity for each row (lightweight progress indicator)
+    scores = []
+    for i, text in enumerate(df["clean_text"]):
+        if i % 50 == 0:
+            st.write(f"Processing sample {i}/{len(df)}...")
+        try:
+            scores.append(model.predict(text)["toxicity"])
+        except Exception:
+            scores.append(None)
+
+    df["toxicity_score"] = scores
     df["has_factual_marker"] = df["clean_text"].apply(has_factual_marker)
     df["domain"] = df["clean_text"].apply(extract_domain)
 
@@ -111,9 +120,11 @@ if compute_metrics:
     st.metric("Factual Marker %", f"{factual:.1f}%")
 
     st.plotly_chart(
-        px.pie(values=list(domain_counts.values()),
-               names=list(domain_counts.keys()),
-               title="Domain Coverage"),
+        px.pie(
+            values=list(domain_counts.values()),
+            names=list(domain_counts.keys()),
+            title="Domain Coverage"
+        ),
         use_container_width=True
     )
 
@@ -125,7 +136,7 @@ if generate_report:
 
     avg_len = df["text_length"].mean()
     st.markdown(f"""
-    **Total samples (input):** 1000  
+    **Total samples (input):** 300  
     **After cleaning/filtering:** {len(df)}  
     **Average text length:** {avg_len:.1f}
     """)
