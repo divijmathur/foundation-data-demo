@@ -12,12 +12,12 @@ from tqdm import tqdm
 # ----------------------------
 # PAGE CONFIG & INTRO
 # ----------------------------
-st.set_page_config(page_title="Foundation Data Dashboard", layout="wide")
-st.title("🧠 Foundation Data Quality Dashboard")
+st.set_page_config(page_title="Data Quality Dashboard", layout="wide")
+st.title("🧠 Data Quality Dashboard")
 
 st.markdown("""
-Welcome to the **Foundation Data Quality Dashboard** —  
-a miniature simulation of a Foundation Data pipeline used to curate model-training datasets.
+Welcome to the **Data Quality Dashboard**  
+a miniature simulation of a Data pipeline used to curate model-training datasets.
 
 **You can:**
 - Adjust filters for text length, language, and duplication.  
@@ -60,7 +60,7 @@ def load_data():
 st.sidebar.header("🔧 Filter Options")
 min_len = st.sidebar.slider("Min text length", 100, 2000, 200)
 max_len = st.sidebar.slider("Max text length", 1000, 10000, 5000)
-only_en = st.sidebar.checkbox("Keep only English", True)
+# only_en = st.sidebar.checkbox("Keep only English", True)
 dedupe = st.sidebar.checkbox("Deduplicate", True)
 compute_metrics = st.sidebar.checkbox("Compute Quality Metrics (on demand)", False)
 generate_report = st.sidebar.button("📄 Generate Data Quality Report")
@@ -70,9 +70,9 @@ generate_report = st.sidebar.button("📄 Generate Data Quality Report")
 # ----------------------------
 df = load_data()
 
-if only_en:
-    df["lang"] = df["clean_text"].apply(lambda t: detect(t) if len(t) > 20 else "unknown")
-    df = df[df["lang"] == "en"]
+# if only_en:
+#     df["lang"] = df["clean_text"].apply(lambda t: detect(t) if len(t) > 20 else "unknown")
+#     df = df[df["lang"] == "en"]
 
 if dedupe:
     df = df.drop_duplicates(subset=["clean_text"])
